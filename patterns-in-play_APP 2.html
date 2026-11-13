@@ -1,0 +1,1398 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Patterns in Play</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --night:#0a0918; --ink:#15132c; --paper:#efebf8; --mist:#9a95b8;
+  --line:rgba(239,235,248,.14); --glass:rgba(17,15,38,.72);
+  --display:'Unbounded',system-ui,sans-serif;
+  --body:'Instrument Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--night);color:var(--paper);font-family:var(--body);overflow:hidden;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible{outline:2px solid var(--paper);outline-offset:3px}
+[hidden]{display:none!important}
+#scope{position:fixed;inset:0;width:100vw;height:100vh;display:block;touch-action:none}
+body[data-screen=play] #scope, body[data-step="4"] #scope{cursor:grab}
+#scope.dragging{cursor:grabbing!important}
+
+/* ---------- screens ---------- */
+.screen{position:fixed;inset:0;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .6s ease,visibility 0s linear .6s}
+body[data-screen=intro] #intro, body[data-screen=setup] #setup, body[data-screen=play] #play{opacity:1;visibility:visible;transition:opacity .6s ease}
+.hit{pointer-events:auto}
+
+.btn{border-radius:999px;padding:13px 26px;font-weight:600;font-size:15px;border:1px solid transparent;transition:transform .15s,background .2s,border-color .2s,opacity .2s}
+.btn:active{transform:scale(.97)}
+.btn.primary{background:var(--paper);color:var(--night)}
+.btn.primary:hover{background:#fff}
+.btn.quiet{background:transparent;border-color:var(--line);color:var(--paper)}
+.btn.quiet:hover{border-color:rgba(239,235,248,.4)}
+.btn:disabled{opacity:.3;cursor:default;transform:none}
+
+/* ---------- intro ---------- */
+#intro{display:flex;align-items:flex-end;padding:0 8vw 11vh;background:linear-gradient(to top,rgba(10,9,24,.85),rgba(10,9,24,0) 60%)}
+#intro .block{max-width:560px}
+#intro h1{font-family:var(--display);font-weight:600;font-size:clamp(52px,9.5vw,136px);line-height:.92;letter-spacing:-.03em;margin:0 0 28px}
+#intro p{font-size:clamp(17px,1.5vw,20px);line-height:1.5;opacity:.82;margin:0 0 32px;max-width:30em}
+#intro .fine{font-size:13px;color:var(--mist);opacity:1;margin:16px 0 0}
+
+/* ---------- setup ---------- */
+#setup{display:grid;grid-template-columns:minmax(0,1fr) min(470px,42vw)}
+#previewSlot{position:relative}
+#setupCol{min-width:0;display:flex;flex-direction:column;min-height:0;background:var(--glass);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-left:1px solid var(--line)}
+#progress{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;padding:26px 40px 0}
+#progress button{background:none;border:0;padding:0 0 10px;text-align:left;font-size:13px;color:var(--mist);border-bottom:2px solid var(--line);transition:color .2s,border-color .2s}
+#progress button .n{font-family:var(--display);font-size:11px;margin-right:6px}
+#progress button.done{color:var(--paper);border-color:rgba(239,235,248,.4)}
+#progress button.on{color:var(--paper);border-color:var(--paper)}
+#progress button:disabled{cursor:default;opacity:.55}
+#stepBody{flex:1;overflow-y:auto;padding:30px 40px 24px}
+.step h2{font-family:var(--display);font-weight:600;font-size:28px;line-height:1.12;letter-spacing:-.01em;margin:0 0 12px}
+.lede{font-size:15px;line-height:1.55;color:var(--mist);margin:0 0 24px;max-width:34em}
+.hint{font-size:13px;line-height:1.5;color:var(--mist);margin:12px 0 0}
+#stepNav{display:flex;justify-content:space-between;gap:10px;padding:18px 40px 26px;border-top:1px solid var(--line)}
+#stepNav .btn{min-width:120px}
+
+/* step 1: pieces */
+.shapes{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.shape{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 4px 10px;border-radius:16px;background:rgba(239,235,248,.04);border:1px solid transparent;transition:border-color .2s}
+.shape.drop{border-color:var(--paper)}
+.shape .add{background:none;border:0;padding:0;border-radius:50%}
+.shape .add:disabled{cursor:default}
+.shape img{width:52px;height:52px;display:block;transition:transform .15s}
+.shape .add:not(:disabled):hover img{transform:scale(1.07)}
+.shape .add:active img{transform:scale(.88)}
+.shape .note{font-family:var(--display);font-size:15px;font-weight:600;line-height:1}
+.shape .note.custom{text-decoration:underline;cursor:pointer}
+.shape .sound{font-size:11px;color:var(--mist);text-align:center;line-height:1.2;min-height:2.4em}
+.stepper{display:flex;align-items:center;gap:2px}
+.stepper button{background:none;border:1px solid var(--line);border-radius:999px;width:24px;height:24px;line-height:1;font-size:15px;padding:0}
+.stepper button:hover:not(:disabled){border-color:rgba(239,235,248,.45)}
+.stepper button:disabled{opacity:.25;cursor:default}
+.stepper .count{min-width:16px;text-align:center;font-size:13px}
+.slots{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px;margin-top:22px}
+.slot{aspect-ratio:1;border-radius:50%;border:1px dashed rgba(239,235,248,.22);background:none;padding:0;display:flex;align-items:center;justify-content:center}
+.slot.filled{border:1px solid transparent;background:rgba(239,235,248,.05)}
+.slot img{width:72%;height:72%}
+.slot.filled:hover{border-color:rgba(239,235,248,.4)}
+
+/* step 2: mirrors */
+.chips{display:flex;gap:6px}
+.chips button{flex:1;height:52px;border-radius:14px;border:1px solid var(--line);background:none;font-family:var(--display);font-size:16px}
+.chips button.on{background:var(--paper);color:var(--night);border-color:var(--paper)}
+
+/* step 3: melody */
+#phrase{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;margin:0 0 22px;min-height:40px}
+#phrase .nl{font-family:var(--display);font-weight:600;font-size:22px;line-height:1;opacity:.4;transition:opacity .12s,transform .12s;display:inline-block}
+#phrase .nl.on{opacity:1;transform:translateY(-4px)}
+#phrase .div{width:1px;height:26px;background:var(--line);margin:0 6px}
+.melodyRow{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.variant{display:flex;align-items:center;gap:8px;margin-left:auto}
+.variant span{min-width:84px;text-align:center;font-size:15px}
+.variant button{width:42px;height:42px;border-radius:12px;border:1px solid var(--line);background:none;font-size:18px}
+.variant button:disabled{opacity:.25;cursor:default}
+
+/* step 4: controls */
+.options{display:grid;gap:10px}
+.option{display:block;text-align:left;width:100%;border-radius:16px;border:1px solid var(--line);background:rgba(239,235,248,.03);padding:16px 18px;transition:border-color .2s,background .2s}
+.option:hover{border-color:rgba(239,235,248,.35)}
+.option[aria-pressed=true]{border-color:var(--paper);background:rgba(239,235,248,.08)}
+.option .t{display:block;font-weight:600;font-size:16px;margin-bottom:4px}
+.option .d{display:block;font-size:13px;line-height:1.5;color:var(--mist)}
+#optMsg{color:var(--paper)}
+#camSlot{margin-top:18px}
+#camBox{position:relative;width:100%;aspect-ratio:4/3;border-radius:14px;overflow:hidden;background:#000;border:1px solid var(--line)}
+#cam{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);opacity:.6}
+#camOverlay{position:absolute;inset:0;width:100%;height:100%}
+#camMsg{position:absolute;left:12px;right:12px;bottom:10px;margin:0;font-size:13px;text-align:center;color:var(--paper)}
+#play #camBox{position:absolute;right:20px;bottom:20px;width:180px}
+#play #camBox.hidden{opacity:0;width:4px;pointer-events:none}
+.checks{list-style:none;padding:0;margin:14px 0 0;display:grid;gap:8px}
+.checks li{display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.4;color:var(--mist)}
+.checks li::before{content:'';flex:none;width:16px;height:16px;margin-top:1px;border-radius:50%;border:1.5px solid rgba(239,235,248,.35)}
+.checks li.done{color:var(--paper)}
+.checks li.done::before{background:var(--paper) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8.5l2.5 2.5L12 5.5' fill='none' stroke='%230a0918' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/100% no-repeat;border-color:var(--paper)}
+
+/* ---------- play ---------- */
+.chrome{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:20px 22px;transition:opacity .5s}
+body.idle .chrome{opacity:0}
+.chrome .group{display:flex;gap:8px}
+.pill{background:var(--glass);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid var(--line);border-radius:999px;height:42px;display:inline-flex;align-items:center;gap:8px;padding:0 16px;font-size:14px;font-weight:500}
+.pill.icon{width:42px;padding:0;justify-content:center}
+.pill svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.pill[aria-pressed=false]{color:var(--mist)}
+#guide{position:absolute;left:50%;bottom:30px;transform:translateX(-50%);display:none;background:var(--glass);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid var(--line);border-radius:999px;padding:11px 20px;font-size:15px;max-width:calc(100vw - 32px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ---------- tuning drawer (press T) ---------- */
+#tune{position:fixed;top:76px;right:16px;width:300px;max-height:calc(100vh - 92px);overflow-y:auto;z-index:5;display:none;background:var(--glass);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid var(--line);border-radius:16px;padding:16px;font-size:12px;color:var(--mist)}
+body.tuning #tune{display:block}
+#tune h4{margin:0 0 12px;font-size:13px;color:var(--paper);font-weight:600}
+.srow{display:grid;grid-template-columns:86px 1fr 34px;align-items:center;gap:8px;margin-bottom:8px}
+.srow span:last-child{text-align:right}
+input[type=range]{accent-color:var(--paper);width:100%}
+#tune label{display:flex;gap:8px;align-items:center;margin:6px 0}
+#hud{white-space:pre;font-family:ui-monospace,Menlo,monospace;font-size:11px;line-height:1.7;margin:10px 0 0}
+
+@media (max-width:820px){
+  #setup{grid-template-columns:minmax(0,1fr);grid-template-rows:38vh minmax(0,1fr)}
+  #setupCol{border-left:0;border-top:1px solid var(--line)}
+  #progress{padding:16px 20px 0}
+  #stepBody{padding:20px 20px 16px}
+  #stepNav{padding:12px 20px 16px}
+  .step h2{font-size:22px}
+  .shape img{width:40px;height:40px}
+  .shapes{gap:5px}
+  .stepper button{width:22px;height:22px}
+  #progress button{font-size:12px}
+  #progress button .n{display:none}
+  #intro{padding:0 24px 9vh}
+}
+@media (prefers-reduced-motion:reduce){ .screen{transition:none} }
+</style>
+</head>
+<body data-screen="intro" data-step="1">
+<canvas id="scope" aria-label="Kaleidoscope"></canvas>
+
+<section id="intro" class="screen">
+  <div class="block hit">
+    <h1>Patterns<br>in Play</h1>
+    <p>Fill a kaleidoscope with pieces you choose, then look in. Every piece is a note, and turning the kaleidoscope plays them.</p>
+    <button class="btn primary" id="beginBtn">Begin</button>
+    <p class="fine">Turn your sound on. Works best in Chrome.</p>
+  </div>
+</section>
+
+<section id="setup" class="screen">
+  <div id="previewSlot"></div>
+  <div id="setupCol" class="hit">
+    <nav id="progress" aria-label="Steps">
+      <button data-go="1"><span class="n">1</span>Pieces</button>
+      <button data-go="2"><span class="n">2</span>Mirrors</button>
+      <button data-go="3"><span class="n">3</span>Melody</button>
+      <button data-go="4"><span class="n">4</span>Controls</button>
+    </nav>
+
+    <div id="stepBody">
+      <div class="step" data-step="1">
+        <h2>Choose your pieces</h2>
+        <p class="lede">Each piece is a note. Tap one to drop it into the slice and hear it. Add more copies of a piece and its note plays more often.</p>
+        <div class="shapes" id="tiles"></div>
+        <div class="slots" id="slots" aria-label="Pieces in the slice"></div>
+        <p class="hint" id="slotsHint"></p>
+      </div>
+
+      <div class="step" data-step="2" hidden>
+        <h2>Choose your mirrors</h2>
+        <p class="lede">Mirrors repeat your slice around the circle. More mirrors make a denser pattern and more notes in every turn.</p>
+        <div class="chips" id="sections"></div>
+        <p class="hint" id="mirrorHint"></p>
+      </div>
+
+      <div class="step" data-step="3" hidden>
+        <h2>Choose your melody</h2>
+        <p class="lede">The order of your pieces is the tune. Each turn plays it, then its reflection.</p>
+        <div id="phrase" aria-live="off"></div>
+        <div class="melodyRow">
+          <button class="btn quiet" id="listenBtn">Listen</button>
+          <div class="variant">
+            <button id="vPrev" aria-label="Previous melody">‹</button>
+            <span id="vLabel">Melody 1</span>
+            <button id="vNext" aria-label="Next melody">›</button>
+          </div>
+        </div>
+        <p class="hint">Same notes, a different order.</p>
+      </div>
+
+      <div class="step" data-step="4" hidden>
+        <h2>How will you play?</h2>
+        <p class="lede">Choose now, so nothing interrupts once you look in.</p>
+        <div class="options">
+          <button class="option" id="optHands" aria-pressed="false">
+            <span class="t">With my hands</span>
+            <span class="d">Left hand sweeps to spin. Right hand lifts to bring your pieces in. Uses your camera; the video stays on your computer.</span>
+          </button>
+          <button class="option" id="optMouse" aria-pressed="false">
+            <span class="t">With mouse or touch</span>
+            <span class="d">Drag sideways to spin. Your pieces come in on their own.</span>
+          </button>
+        </div>
+        <p class="hint" id="optMsg"></p>
+        <div id="handsPractice" hidden>
+          <div id="camSlot">
+            <div id="camBox">
+              <video id="cam" playsinline muted></video>
+              <canvas id="camOverlay"></canvas>
+              <p id="camMsg"></p>
+            </div>
+          </div>
+          <ul class="checks">
+            <li id="chkBoth">Show both hands to the camera</li>
+            <li id="chkSpin">Sweep your left hand sideways to spin</li>
+            <li id="chkLift">Lower your right hand, then lift it: your pieces leave and come back</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div id="stepNav">
+      <button class="btn quiet" id="backBtn">Back</button>
+      <button class="btn primary" id="nextBtn">Next</button>
+    </div>
+  </div>
+</section>
+
+<section id="play" class="screen">
+  <div class="chrome">
+    <button class="pill hit" id="editBtn"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg>Edit</button>
+    <div class="group hit">
+      <button class="pill icon" id="soundBtn" aria-pressed="true" aria-label="Sound"></button>
+      <button class="pill icon" id="camBtn" aria-pressed="false" aria-label="Hand tracking">
+        <svg viewBox="0 0 24 24"><rect x="3" y="7" width="13" height="10" rx="2"/><path d="M16 11l5-3v8l-5-3"/></svg>
+      </button>
+      <button class="pill icon" id="fsBtn" aria-label="Full screen">
+        <svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+      </button>
+    </div>
+  </div>
+  <div id="guide" role="status"></div>
+</section>
+
+<aside id="tune">
+  <h4>Tuning (press T to hide)</h4>
+  <div class="srow"><span>Movement</span><input type="range" id="motion" min="0" max="100"><span id="motionVal"></span></div>
+  <div class="srow"><span>Volume</span><input type="range" id="vol" min="0" max="100" value="80"><span></span></div>
+  <div class="srow"><span>Space</span><input type="range" id="space" min="0" max="100" value="35"><span id="spaceVal">35</span></div>
+  <div class="srow"><span>Notes / sec</span><input type="range" id="rate" min="3" max="16" value="8"><span id="rateVal">8</span></div>
+  <label><input type="checkbox" id="blend" checked> Blend overlaps</label>
+  <label><input type="checkbox" id="lines"> Section lines in play</label>
+  <label><input type="checkbox" id="showCam"> Camera preview in play</label>
+  <div id="hud"></div>
+</aside>
+
+<script>
+/* ===================== ASSETS (designer-supplied, unchanged) ===================== */
+const SVGS = {
+circle:`<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+<mask id="mask0_138_2" style="mask-type:luminance" maskUnits="userSpaceOnUse" x="36" y="36" width="440" height="440">
+<path d="M256 476C377.503 476 476 377.503 476 256C476 134.497 377.503 36 256 36C134.497 36 36 134.497 36 256C36 377.503 134.497 476 256 476Z" fill="white"/>
+</mask>
+<g mask="url(#mask0_138_2)">
+<path d="M256 476C377.503 476 476 377.503 476 256C476 134.497 377.503 36 256 36C134.497 36 36 134.497 36 256C36 377.503 134.497 476 256 476Z" fill="url(#paint0_linear_138_2)"/>
+<path opacity="0.72" d="M256 430C352.098 430 430 352.098 430 256C430 159.902 352.098 82 256 82C159.902 82 82 159.902 82 256C82 352.098 159.902 430 256 430Z" fill="#FFB34D"/>
+<path d="M256 388C328.902 388 388 328.902 388 256C388 183.098 328.902 124 256 124C183.098 124 124 183.098 124 256C124 328.902 183.098 388 256 388Z" fill="url(#paint1_radial_138_2)"/>
+<path opacity="0.9" d="M256 348C306.81 348 348 306.81 348 256C348 205.19 306.81 164 256 164C205.19 164 164 205.19 164 256C164 306.81 205.19 348 256 348Z" fill="#FF642B"/>
+<path d="M256 313C287.48 313 313 287.48 313 256C313 224.52 287.48 199 256 199C224.52 199 199 224.52 199 256C199 287.48 224.52 313 256 313Z" fill="url(#paint2_radial_138_2)"/>
+</g>
+<defs>
+<linearGradient id="paint0_linear_138_2" x1="36" y1="36" x2="476" y2="476" gradientUnits="userSpaceOnUse">
+<stop stop-color="#FFB51B"/>
+<stop offset="0.42" stop-color="#FF4A43"/>
+<stop offset="1" stop-color="#FF8C35"/>
+</linearGradient>
+<radialGradient id="paint1_radial_138_2" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(256 250.72) scale(153.12)">
+<stop stop-color="#FFF52D"/>
+<stop offset="0.48" stop-color="#FF9B19"/>
+<stop offset="1" stop-color="#FF5241"/>
+</radialGradient>
+<radialGradient id="paint2_radial_138_2" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(256 253.72) scale(66.12)">
+<stop stop-color="#FFF52D"/>
+<stop offset="0.48" stop-color="#FF9B19"/>
+<stop offset="1" stop-color="#FFDA27"/>
+</radialGradient>
+</defs>
+</svg>`,
+triangle:`<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+<mask id="mask0_138_51" style="mask-type:luminance" maskUnits="userSpaceOnUse" x="24" y="28" width="464" height="436">
+<path d="M256 28L486 444C490 457.333 484 464 468 464H43.9998C27.9998 464 21.9998 457.333 25.9998 444L256 28Z" fill="white"/>
+</mask>
+<g mask="url(#mask0_138_51)">
+<path d="M512 0H0V512H512V0Z" fill="url(#paint0_linear_138_51)"/>
+<path opacity="0.82" d="M256 512C369.218 512 461 420.218 461 307C461 193.782 369.218 102 256 102C142.782 102 51 193.782 51 307C51 420.218 142.782 512 256 512Z" fill="#9F39F4"/>
+<path opacity="0.88" d="M256 453C341.052 453 410 384.052 410 299C410 213.948 341.052 145 256 145C170.948 145 102 213.948 102 299C102 384.052 170.948 453 256 453Z" fill="#AE32F2"/>
+<path d="M256 115L403 420H109L256 115Z" fill="url(#paint1_radial_138_51)"/>
+<path d="M256 190L338 363H174L256 190Z" fill="url(#paint2_radial_138_51)"/>
+<path d="M256 250L305 352H207L256 250Z" fill="url(#paint3_radial_138_51)"/>
+</g>
+<defs>
+<linearGradient id="paint0_linear_138_51" x1="2.98023e-06" y1="512" x2="460.8" y2="-3.42131e-06" gradientUnits="userSpaceOnUse">
+<stop stop-color="#8F43BD"/>
+<stop offset="0.38" stop-color="#6E3AAA"/>
+<stop offset="0.72" stop-color="#B42BFF"/>
+<stop offset="1" stop-color="#FF4E9A"/>
+</linearGradient>
+<radialGradient id="paint1_radial_138_51" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(256 267.5) scale(191.1 198.25)">
+<stop stop-color="#9231FF"/>
+<stop offset="0.42" stop-color="#9032D3"/>
+<stop offset="1" stop-color="#7137F2"/>
+</radialGradient>
+<radialGradient id="paint2_radial_138_51" cx="0" cy="0" r="1" gradientTransform="matrix(65.6 -119 114.706 71.4228 256 309)" gradientUnits="userSpaceOnUse">
+<stop stop-color="#8F43BD"/>
+<stop offset="0.38" stop-color="#6E3AAA"/>
+<stop offset="0.72" stop-color="#B42BFF"/>
+<stop offset="1" stop-color="#8169F5"/>
+</radialGradient>
+<radialGradient id="paint3_radial_138_51" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(256 301) scale(63.7 66.3)">
+<stop stop-color="#9231FF"/>
+<stop offset="0.42" stop-color="#9032D3"/>
+<stop offset="1" stop-color="#7137F2"/>
+</radialGradient>
+</defs>
+</svg>`,
+square:`<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+<mask id="mask0_138_14" style="mask-type:luminance" maskUnits="userSpaceOnUse" x="34" y="34" width="444" height="444">
+<path d="M473 34H39C36.2386 34 34 36.2386 34 39V473C34 475.761 36.2386 478 39 478H473C475.761 478 478 475.761 478 473V39C478 36.2386 475.761 34 473 34Z" fill="white"/>
+</mask>
+<g mask="url(#mask0_138_14)">
+<path d="M478 34H34V478H478V34Z" fill="url(#paint0_linear_138_14)"/>
+<path opacity="0.95" d="M34 256C156.607 256 256 156.607 256 34C256 -88.6072 156.607 -188 34 -188C-88.6072 -188 -188 -88.6072 -188 34C-188 156.607 -88.6072 256 34 256Z" fill="#CFFF37"/>
+<path opacity="0.9" d="M478 256C600.607 256 700 156.607 700 34C700 -88.6072 600.607 -188 478 -188C355.393 -188 256 -88.6072 256 34C256 156.607 355.393 256 478 256Z" fill="#5DE34C"/>
+<path opacity="0.92" d="M34 700C156.607 700 256 600.607 256 478C256 355.393 156.607 256 34 256C-88.6072 256 -188 355.393 -188 478C-188 600.607 -88.6072 700 34 700Z" fill="#11BDAA"/>
+<path opacity="0.92" d="M478 700C600.607 700 700 600.607 700 478C700 355.393 600.607 256 478 256C355.393 256 256 355.393 256 478C256 600.607 355.393 700 478 700Z" fill="#07978D"/>
+<path d="M256 142C300 190 322 212 370 256C322 300 300 322 256 370C212 322 190 300 142 256C190 212 212 190 256 142Z" fill="url(#paint1_radial_138_14)"/>
+<path opacity="0.94" d="M256 190L322 256L256 322L190 256L256 190Z" fill="url(#paint2_radial_138_14)"/>
+</g>
+<defs>
+<linearGradient id="paint0_linear_138_14" x1="34" y1="34" x2="478" y2="478" gradientUnits="userSpaceOnUse">
+<stop stop-color="#F8FF39"/>
+<stop offset="0.42" stop-color="#83ED32"/>
+<stop offset="0.72" stop-color="#11BDAA"/>
+<stop offset="1" stop-color="#087D83"/>
+</linearGradient>
+<radialGradient id="paint1_radial_138_14" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(251.44 244.6) scale(145.92)">
+<stop stop-color="#FFFDE0"/>
+<stop offset="0.45" stop-color="#D6FF54"/>
+<stop offset="1" stop-color="#00A88F"/>
+</radialGradient>
+<radialGradient id="paint2_radial_138_14" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(256 256) rotate(90) scale(66)">
+<stop stop-color="#E5FE87"/>
+<stop offset="1" stop-color="#4ED769"/>
+</radialGradient>
+</defs>
+</svg>`,
+hexagon:`<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+<mask id="mask0_138_27" style="mask-type:luminance" maskUnits="userSpaceOnUse" x="53" y="24" width="406" height="464">
+<path d="M256 24L459 141V371L256 488L53 371V141L256 24Z" fill="white"/>
+</mask>
+<g mask="url(#mask0_138_27)">
+<path d="M512 0H0V512H512V0Z" fill="url(#paint0_linear_138_27)"/>
+<path opacity="0.9" d="M20 70C177.333 183.333 334.667 183.333 492 70V225C334.667 315 177.333 315 20 225V70Z" fill="#16D8E7"/>
+<path opacity="0.86" d="M20 150C177.333 270 334.667 270 492 150V350C334.667 436.667 177.333 436.667 20 350V150Z" fill="#4C51F2"/>
+<path d="M256 500C343.261 500 414 429.261 414 342C414 254.739 343.261 184 256 184C168.739 184 98 254.739 98 342C98 429.261 168.739 500 256 500Z" fill="url(#paint1_radial_138_27)"/>
+<path opacity="0.92" d="M256 464C310.676 464 355 419.676 355 365C355 310.324 310.676 266 256 266C201.324 266 157 310.324 157 365C157 419.676 201.324 464 256 464Z" fill="#168CFF"/>
+<path d="M256 441C286.376 441 311 416.376 311 386C311 355.624 286.376 331 256 331C225.624 331 201 355.624 201 386C201 416.376 225.624 441 256 441Z" fill="url(#paint2_radial_138_27)"/>
+<path d="M53 141L256 24L459 141V371L256 488L53 371V141Z" stroke-width="5" stroke="#66F4F2"/>
+</g>
+<defs>
+<linearGradient id="paint0_linear_138_27" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+<stop stop-color="#16E4E3"/>
+<stop offset="0.36" stop-color="#148BFF"/>
+<stop offset="0.7" stop-color="#5546F5"/>
+<stop offset="1" stop-color="#19C9E8"/>
+</linearGradient>
+<radialGradient id="paint1_radial_138_27" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(256 316.72) scale(208.56)">
+<stop stop-color="#F1FF68"/>
+<stop offset="0.48" stop-color="#39DDE1"/>
+<stop offset="1" stop-color="#373BDD"/>
+</radialGradient>
+<radialGradient id="paint2_radial_138_27" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(256 383.8) scale(68.2)">
+<stop stop-color="#82EAB1"/>
+<stop offset="0.48" stop-color="#4562F1"/>
+<stop offset="1" stop-color="#39CDE0"/>
+</radialGradient>
+</defs>
+</svg>`,
+star:`<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M256 20C281 128 318 165 492 256C318 347 281 384 256 492C231 384 194 347 20 256C194 165 231 128 256 20Z" fill="url(#paint0_radial_138_40)"/>
+<path opacity="0.94" d="M256 406C338.843 406 406 338.843 406 256C406 173.157 338.843 106 256 106C173.157 106 106 173.157 106 256C106 338.843 173.157 406 256 406Z" fill="url(#paint1_radial_138_40)"/>
+<path d="M256 76C281 174 318 215 440 256C318 297 281 338 256 436C231 338 194 297 72 256C194 215 231 174 256 76Z" fill="url(#paint2_radial_138_40)"/>
+<path opacity="0.92" d="M256 145C274 211 301 238 367 256C301 274 274 301 256 367C238 301 211 274 145 256C211 238 238 211 256 145Z" fill="url(#paint3_radial_138_40)"/>
+<defs>
+<radialGradient id="paint0_radial_138_40" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(256 256) rotate(90) scale(236)">
+<stop stop-color="#972A4B"/>
+<stop offset="1" stop-color="#F96F92"/>
+</radialGradient>
+<radialGradient id="paint1_radial_138_40" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(256 256) rotate(90) scale(150)">
+<stop stop-color="#FC819D"/>
+<stop offset="1" stop-color="#C82A5A"/>
+</radialGradient>
+<radialGradient id="paint2_radial_138_40" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(256 248.8) scale(228.16 223.2)">
+<stop stop-color="#D63E6A"/>
+<stop offset="0.52" stop-color="#E57B9A"/>
+<stop offset="1" stop-color="#D5003E"/>
+</radialGradient>
+<radialGradient id="paint3_radial_138_40" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(256 256) rotate(90) scale(111)">
+<stop stop-color="#FC819D"/>
+<stop offset="1" stop-color="#FD477E"/>
+</radialGradient>
+</defs>
+</svg>`
+};
+
+
+
+/* ===================== CONFIG ===================== */
+const SHAPES = [
+  { id:'circle',   name:'Circle',   note:'C', sound:'Soft bell',   color:'#FF7A3D' },
+  { id:'triangle', name:'Triangle', note:'D', sound:'Pluck',       color:'#A93BF5' },
+  { id:'square',   name:'Square',   note:'E', sound:'Warm mallet', color:'#8BEA3A' },
+  { id:'hexagon',  name:'Hexagon',  note:'G', sound:'Glass',       color:'#1AA8F5' },
+  { id:'star',     name:'Star',     note:'A', sound:'Airy chime',  color:'#F2538A' },
+];
+const MAX_TOTAL  = 8;
+const SECTIONS   = [4, 6, 8, 10, 12];
+const IDLE_SPEED = 0.2;
+const MAX_SPEED  = 6;
+const FRICTION   = 0.45;
+const DRAG_GAIN  = 0.008;
+const PLAYHEAD   = -Math.PI/2;
+const REDUCED    = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// ==LAYOUT START== (pure functions: deterministic arrangement)
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function seedFrom(counts, variant){let h=2166136261;for(const c of [...counts,variant]){h^=c+1;h=Math.imul(h,16777619);}return h>>>0;}
+
+// Order of shapes inside one section = the melody.
+// Pattern 1: copies spread as evenly as possible. Pattern 2+: seeded reorderings
+// (same notes, same proportions, different melody), avoiding repeated neighbours.
+function buildSequence(counts, variant){
+  const M = counts.reduce((a,b)=>a+b,0);
+  if(!M) return [];
+  const slots = new Array(M).fill(-1);
+  const order = [0,1,2,3,4].filter(i=>counts[i]>0).sort((a,b)=>counts[b]-counts[a]||a-b);
+  for(const i of order){
+    const c = counts[i];
+    for(let k=0;k<c;k++){
+      const ideal = Math.round((k+0.5)*M/c - 0.5);
+      let placed = false;
+      for(let off=0; off<M && !placed; off++){
+        for(const cand of [ideal+off, ideal-off]){
+          const j = ((cand%M)+M)%M;
+          if(slots[j]===-1){ slots[j]=i; placed=true; break; }
+        }
+      }
+    }
+  }
+  if(variant===0) return slots;
+  const rng = mulberry32(seedFrom(counts, variant));
+  let best=null, bestScore=Infinity;
+  for(let t=0;t<40;t++){
+    const a = slots.slice();
+    for(let i=a.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[a[i],a[j]]=[a[j],a[i]];}
+    let sc=0; for(let i=1;i<a.length;i++) if(a[i]===a[i-1]) sc++;
+    if(sc<bestScore){bestScore=sc;best=a;}
+    if(sc===0) break;
+  }
+  return best;
+}
+
+// Places shapes inside one wedge (angle 0..w), radius in units of R.
+// Every shape gets its own angle (so no two ever hit the playhead together),
+// stays fully inside its wedge, and never overlaps a neighbour.
+function buildLayout(counts, variant, N){
+  const seq = buildSequence(counts, variant), M = seq.length, w = 2*Math.PI/N;
+  if(!M) return { seq, N, w, items:[] };
+  const rng = mulberry32((seedFrom(counts, variant) ^ 0x9e3779b9)>>>0);
+  const targets = [];
+  for(let i=0;i<M;i++) targets.push(M===1 ? 0.6 : 0.36 + 0.48*i/(M-1));
+  let radial;
+  if(variant===0){ radial=[]; let lo=0, hi=M-1; for(let i=0;i<M;i++) radial.push(i%2 ? targets[hi--] : targets[lo++]); }
+  else { radial = targets.slice(); for(let i=M-1;i>0;i--){const j=Math.floor(rng()*(i+1));[radial[i],radial[j]]=[radial[j],radial[i]];} }
+  const sMax = Math.min(0.22, 0.5/Math.sqrt(M+1));
+  const items = [];
+  for(let i=0;i<M;i++){
+    const th = M===1 ? w/2 : w*(0.16 + 0.68*i/(M-1));
+    let best = null;
+    for(let d=0.24; d<=0.93; d+=0.01){
+      const x=d*Math.cos(th), y=d*Math.sin(th);
+      let s = Math.min(sMax, d*Math.sin(th), d*Math.sin(w-th), 0.96-d, d-0.05);
+      for(const o of items) s = Math.min(s, Math.hypot(x-o.x, y-o.y) - o.s);
+      if(s<=0) continue;
+      const score = s - 0.22*Math.abs(d - radial[i]);
+      if(!best || score>best.score) best = { score, d, s, x, y };
+    }
+    if(!best){ const d=0.6; best={ d, s:0.01, x:d*Math.cos(th), y:d*Math.sin(th) }; }
+    // Motion personality: integer frequencies so one full revolution always returns
+    // to the same image (movement is a function of rotation, never of time or chance).
+    const k = 1 + Math.floor(rng()*2);
+    items.push({ shape:seq[i], th, d:best.d, x:best.x, y:best.y, s:best.s*0.94,
+      k, ph:rng()*Math.PI*2,
+      k2:1 + Math.floor(rng()*3), ph2:rng()*Math.PI*2,
+      spin:[-3,-2,2,3][Math.floor(rng()*4)],
+      fling:0.6 + 0.8*rng() });
+  }
+  // Reveal order for the right-hand "how many shapes" control: first copy of every shape
+  // comes first (so a sparse setting keeps its variety of notes), then second copies, etc.
+  const seen=[0,0,0,0,0], copyIdx=items.map(it=>seen[it.shape]++);
+  items.map((_,i)=>i).sort((a,b)=>copyIdx[a]-copyIdx[b] || a-b).forEach((idx,r)=>{ items[idx].rank=r; });
+  return { seq, N, w, items };
+}
+
+// Where a shape is right now, in its section's frame. Same for every section,
+// so radial symmetry always holds. Angular swing is capped (amp*k < 0.6) so each
+// shape still crosses the playhead exactly once per pass: no stutters.
+function pose(it, w, rot, motion, speed){
+  // Bigger slides (across the mirror lines), still capped at amp*k < 0.9 so each shape
+  // passes the marker once per turn.
+  const amp = Math.min(0.45*w, 0.9/it.k);
+  const slide = amp*Math.sin(rot*it.k + it.ph);
+  const th  = it.th + motion*slide;
+  let d = it.d + motion*(0.14*Math.sin(rot*it.k2 + it.ph2) + 0.22*speed*it.fling*(0.9 - it.d));
+  const s = it.s*(1 + 0.35*motion*speed);
+  d = Math.max(0.08, Math.min(0.98 - s, d));
+  // Tumble: each piece spins as the kaleidoscope turns, and rolls as it slides.
+  const roll = 0.6*motion*slide*d/Math.max(0.03, it.s);
+  const orient = th + Math.PI/2 + motion*rot*it.spin + roll;
+  return { th, d, s, orient };
+}
+// ==LAYOUT END==
+
+/* ===================== STATE ===================== */
+const state = { counts:[2,1,1,0,0], N:8, variant:0, rot:0, vel:IDLE_SPEED, speed:0,
+                motion:REDUCED?0.25:0.7, blend:true, showLines:false,
+                screen:'intro', step:1, maxStep:1, input:null };
+let current=null, prev=null, trans=1;
+let flash=new Float32Array(0), prevRel=[], playFlash=0, lastColor='#ffffff';
+const hits=[], dropped=[];
+// Scene: how the kaleidoscope is shown. Eased toward targets set by the screen/step.
+const scene = { ghost:1, fan:1, motionMix:1, wedge:0, lines:0, marker:0, pair:0 };
+let rotOffset=0;                                  // drawn rotation = state.rot + rotOffset
+const dispRot = ()=>state.rot+rotOffset;
+// The opening: pieces enter one at a time after "Look in".
+const reveal = { level:0, start:-99, lastStep:0 };
+const practice = { both:false, spin:false, lift:false };
+
+/* ===================== HANDS (phase 4) ===================== */
+// Values tuned in the gesture sandbox.
+const G = { spinGain:3, deadzone:0.08, minCutoff:1.5, beta:1, sectionMode:'pulse', holdMs:400,
+            stillThresh:0.35, pulseMs:700, singleHandSpins:true, openRef:1.85, closedRef:0.95 };
+const TASKS_URL = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
+const MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';
+const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+
+class OneEuro {
+  constructor(){ this.reset(); }
+  reset(){ this.t=null; this.x=0; this.dx=0; }
+  alpha(cutoff, dt){ const tau=1/(2*Math.PI*cutoff); return 1/(1+tau/dt); }
+  filter(x, t){
+    if(this.t===null){ this.t=t; this.x=x; this.dx=0; return x; }
+    const dt=Math.max(1e-3,t-this.t); this.t=t;
+    const ad=this.alpha(1.0,dt); this.dx=ad*((x-this.x)/dt)+(1-ad)*this.dx;
+    const a=this.alpha(G.minCutoff+G.beta*Math.abs(this.dx),dt);
+    this.x=a*x+(1-a)*this.x; return this.x;
+  }
+}
+const PALM_IDX=[0,5,9,13,17], TIP_IDX=[8,12,16,20];
+const dist3=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,(a.z||0)-(b.z||0));
+function opennessRatio(world){ const palm=dist3(world[0],world[9])||1e-6;
+  return TIP_IDX.reduce((s,i)=>s+dist3(world[i],world[0]),0)/TIP_IDX.length/palm; }
+function palmCenter(lm){ let x=0,y=0; for(const i of PALM_IDX){ x+=1-lm[i].x; y+=lm[i].y; }   // mirrored
+  return { x:x/PALM_IDX.length, y:y/PALM_IDX.length }; }
+function opennessOf(ratio){ return clamp((ratio-G.closedRef)/Math.max(0.05,G.openRef-G.closedRef),0,1); }
+// Left hand (left of the mirrored view) spins; right hand sets how many shapes are present.
+// A single hand on its own always spins.
+function assignRoles(list){
+  if(!list.length) return {};
+  if(list.length===1) return { spin:list[0] };
+  const [a,b]=list.slice(0,2).sort((p,q)=>p.center.x-q.center.x);
+  return { spin:a, shapes:b };
+}
+async function loadLandmarker(){
+  const { FilesetResolver, HandLandmarker } = await import(`${TASKS_URL}/vision_bundle.mjs`);
+  const fileset=await FilesetResolver.forVisionTasks(`${TASKS_URL}/wasm`);
+  const opts=d=>({ baseOptions:{ modelAssetPath:MODEL_URL, delegate:d }, runningMode:'VIDEO', numHands:2,
+    minHandDetectionConfidence:0.6, minHandPresenceConfidence:0.6, minTrackingConfidence:0.5 });
+  try{ Hands.landmarker=await HandLandmarker.createFromOptions(fileset,opts('GPU')); }
+  catch(e){ Hands.landmarker=await HandLandmarker.createFromOptions(fileset,opts('CPU')); }
+}
+
+
+const newRole=()=>({ filter:new OneEuro(), present:false, frames:0, prevX:null, prevT:0, vx:0 });
+const Hands = {
+  on:false, starting:false, landmarker:null, video:null, stream:null, lastVideoTime:-1, lastDetectT:0,
+  list:[], roles:{}, spin:newRole(), shapes:newRole(),
+  pushing:false, target:0, conf:1, lastAnyHand:0, lastRight:0,
+  level:1, levelSet:false, yEma:null, height:0, changedAt:-10,
+  pushTime:0, gestureChanged:false,
+};
+function trackRole(rs, hand, t){
+  if(!hand){ if(rs.present){ rs.present=false; rs.filter.reset(); rs.prevX=null; rs.vx=0; rs.frames=0; } return; }
+  if(!rs.present){ rs.present=true; rs.frames=0; rs.filter.reset(); rs.prevX=null; }
+  rs.frames++;
+  const fx=rs.filter.filter(hand.center.x,t);
+  if(rs.prevX!==null){ const dt=Math.max(1e-3,t-rs.prevT);
+    if(Math.abs(fx-rs.prevX)/dt>8){ rs.filter.reset(); rs.vx=0; }   // impossible jump = tracking glitch
+    else rs.vx=0.5*rs.vx+0.5*((fx-rs.prevX)/dt); }
+  rs.prevX=fx; rs.prevT=t;
+}
+// Right hand height → how many of the chosen pieces are in. Low = 1, high = all.
+const HEIGHT_LOW=0.82, HEIGHT_HIGH=0.22;
+function shapesFromHand(hand,t){
+  const rs=Hands.shapes, M=current ? current.items.length : 0;
+  if(!hand || M<=1){ Hands.yEma=null; return; }
+  Hands.yEma = Hands.yEma===null ? hand.center.y : Hands.yEma+0.35*(hand.center.y-Hands.yEma);
+  Hands.height = clamp((HEIGHT_LOW-Hands.yEma)/(HEIGHT_LOW-HEIGHT_HIGH),0,1);
+  if(rs.frames<4) return;
+  const n=M-1, cur=(Hands.levelSet ? Math.min(Hands.level,M) : M)-1;
+  if(Math.abs(Hands.height-cur/n) <= 0.5/n+0.07) return;       // hysteresis: no flicker
+  const lvl=1+Math.round(Hands.height*n);
+  if(Hands.levelSet && lvl===Hands.level) return;
+  Hands.level=lvl; Hands.levelSet=true; Hands.changedAt=t; Hands.gestureChanged=true;
+}
+function handsDetect(nowMs){
+  const v=Hands.video;
+  if(!Hands.on || !Hands.landmarker || v.readyState<2 || v.currentTime===Hands.lastVideoTime) return;
+  Hands.lastVideoTime=v.currentTime;
+  const res=Hands.landmarker.detectForVideo(v,nowMs), t=nowMs/1000;
+  const dt=Hands.lastDetectT ? Math.min(0.2,t-Hands.lastDetectT) : 0; Hands.lastDetectT=t;
+  const hd=res.handedness||res.handednesses||[];
+  Hands.list=(res.landmarks||[]).map((lm,i)=>({ lm, center:palmCenter(lm),
+    ratio:opennessRatio((res.worldLandmarks||[])[i]||lm), conf:hd[i]&&hd[i][0]?hd[i][0].score:0 }));
+  Hands.roles=assignRoles(Hands.list);
+  trackRole(Hands.spin,Hands.roles.spin,t);
+  trackRole(Hands.shapes,Hands.roles.shapes,t);
+  const rs=Hands.spin;
+  Hands.pushing = rs.present && rs.frames>=4 && Math.abs(rs.vx)>G.deadzone;
+  Hands.target = Hands.pushing ? clamp(rs.vx*G.spinGain,-MAX_SPEED,MAX_SPEED) : 0;
+  if(Hands.pushing) Hands.pushTime+=dt;
+  shapesFromHand(Hands.roles.shapes,t);
+  if(Hands.roles.shapes) Hands.lastRight=t;
+  if(Hands.list.length){ Hands.lastAnyHand=t; Hands.conf=Math.max(...Hands.list.map(h=>h.conf)); }
+}
+
+// How many pieces are showing right now.
+function activeCount(){
+  const M=current ? current.items.length : 0;
+  if(state.screen==='play') return Math.min(reveal.level,M);
+  if(state.screen==='setup' && state.step===4 && Hands.on && Hands.levelSet) return Math.min(reveal.level,M);
+  return M;
+}
+// Pieces step in (or out) one at a time, toward whatever the right hand or the opening asks for.
+function updateReveal(t){
+  const M=current ? current.items.length : 0;
+  const practising = state.screen==='setup' && state.step===4 && Hands.on && Hands.levelSet;
+  if(state.screen!=='play' && !practising){ reveal.level=M; return; }
+  let target=M;
+  if(state.screen==='play'){
+    const since=t-reveal.start;
+    if(since<0.9){ reveal.level=0; return; }                    // a dark beat before the first piece
+    if(state.input==='hands' && Hands.on){
+      if(t-Hands.lastRight>12 && Hands.level<M){ Hands.level=M; }  // no right hand for a while: open up anyway
+      target=Hands.level;
+    } else target=Math.min(M, 1+Math.floor((since-0.9)/1.3));
+  } else target=Hands.level;
+  target=clamp(target,0,M);
+  if(reveal.level!==target && t-reveal.lastStep>0.22){
+    reveal.level+=Math.sign(target-reveal.level); reveal.lastStep=t;
+    if(state.screen==='play' && reveal.level===1 && current.items.length){
+      const first=current.items.find(it=>it.rank===0); if(first) AudioEngine.audition(first.shape);
+    }
+  }
+}
+
+/* ===================== VIEW ===================== */
+const canvas=document.getElementById('scope'), ctx=canvas.getContext('2d');
+let W=0, H=0, dpr=1, R=100;
+const view={cx:0,cy:0,r:100,a:0.5}, viewT={cx:0,cy:0,r:100,a:0.5};
+function computeViewTarget(){
+  if(state.screen==='setup'){
+    const r=document.getElementById('previewSlot').getBoundingClientRect();
+    if(state.step===1 && current){
+      // Frame one slice, pointing up, as large as the space allows.
+      const half=Math.min(current.w/2,Math.PI/2), sw=2*Math.sin(half);
+      const RR=Math.min(r.height*0.84, r.width*0.84/sw);
+      viewT.cx=r.left+r.width/2; viewT.cy=r.top+r.height/2+RR/2; viewT.r=RR; viewT.a=1;
+    } else {
+      viewT.cx=r.left+r.width/2; viewT.cy=r.top+r.height/2; viewT.r=Math.min(r.width,r.height)/2*0.84; viewT.a=1;
+    }
+  } else if(state.screen==='intro'){
+    viewT.cx=W*0.66; viewT.cy=H*0.42; viewT.r=Math.max(W,H)*0.4; viewT.a=0.5;
+  } else {
+    viewT.cx=W/2; viewT.cy=H/2; viewT.r=Math.min(W,H)/2*0.86; viewT.a=1;
+  }
+}
+function resize(){
+  dpr=Math.min(window.devicePixelRatio||1,2); W=innerWidth; H=innerHeight;
+  canvas.width=Math.round(W*dpr); canvas.height=Math.round(H*dpr);
+  computeViewTarget(); Object.assign(view,viewT);
+}
+window.addEventListener('resize',resize);
+function updateView(dt){
+  computeViewTarget();
+  const k=REDUCED?1:Math.min(1,dt*3.2);
+  for(const p of ['cx','cy','r','a']) view[p]+=(viewT[p]-view[p])*k;
+}
+function sceneTargets(){
+  if(state.screen==='intro') return { ghost:1, fan:1, motionMix:1, wedge:0, lines:0, marker:0, pair:0 };
+  if(state.screen==='play')  return { ghost:1, fan:1, motionMix:1, wedge:0, lines:state.showLines?1:0, marker:1, pair:0 };
+  if(state.step===1)         return { ghost:0, fan:0, motionMix:0.45, wedge:1, lines:0, marker:0, pair:0 };
+  return { ghost:0.2, fan:1, motionMix:state.step===4?0.7:0.45, wedge:1, lines:1, marker:0, pair:state.step===3?1:0 };
+}
+const angDiff=(a,b)=>{ let d=(a-b)%(2*Math.PI); if(d>Math.PI) d-=2*Math.PI; if(d<-Math.PI) d+=2*Math.PI; return d; };
+function updateScene(dt){
+  const T=sceneTargets();
+  for(const k in T){
+    const rate = REDUCED ? 30 : k==='ghost' && state.screen==='play' ? 1.1 : k==='fan' ? 2 : 4;
+    scene[k]+=(T[k]-scene[k])*Math.min(1,dt*rate);
+  }
+  // Steps 1–3 hold the slice upright (step 3 centres the slice and its mirror image).
+  // From step 4 on, the kaleidoscope turns freely from wherever it is.
+  if(state.screen==='setup' && state.step<4 && current){
+    const target=-Math.PI/2 - current.w/2 - (state.step===3 ? current.w/2 : 0) - state.rot;
+    rotOffset+=angDiff(target,rotOffset)*Math.min(1,dt*(REDUCED?30:5));
+  }
+}
+
+/* ===================== DRAWING ===================== */
+function relayout(){
+  prev=current;
+  current=buildLayout(state.counts, state.variant, state.N);
+  const act=activeCount();
+  current.vis=Float32Array.from(current.items, it=> it.rank<act ? 1 : 0);
+  trans = prev ? 0 : 1;
+  flash=new Float32Array(current.N*current.items.length);
+  prevRel=[];
+}
+const smooth=x=>x*x*(3-2*x);
+function drawLayout(L, alpha, scale, fl){
+  const { w, N, items } = L, M=items.length;
+  if(!M || alpha<=0.005) return;
+  const mot=state.motion*scene.motionMix;
+  const poses=items.map(it=>pose(it, w, state.rot, mot, state.speed));
+  const base=dispRot();
+  ctx.globalCompositeOperation = state.blend ? 'screen' : 'source-over';
+  for(let k=0;k<N;k++){
+    const fk=smooth(clamp(scene.fan*1.5-0.5*k/N,0,1));         // copies fan out one after another
+    const secA = k===0 ? 1 : k===1 ? scene.ghost+(1-scene.ghost)*scene.pair : scene.ghost;
+    if(secA<0.01) continue;
+    ctx.save();
+    if(k%2===0) ctx.rotate(base+k*w*fk);
+    else { ctx.rotate(base+(k+1)*w*fk); ctx.scale(1,1-2*fk); }  // mirrored copy flips over as it fans out
+    for(let i=0;i<M;i++){
+      const it=items[i], sh=SHAPES[it.shape], p=poses[i], vis=L.vis ? L.vis[i] : 1;
+      if(vis<0.01) continue;
+      const f = fl ? fl[k*M+i] : 0;
+      const size=p.s*R*scale*(1+0.2*f)*(0.6+0.4*vis);
+      ctx.save();
+      ctx.translate(Math.cos(p.th)*p.d*R*scale, Math.sin(p.th)*p.d*R*scale);
+      ctx.rotate(p.orient);
+      ctx.globalAlpha=alpha*vis*secA;
+      if(f>0){ ctx.shadowColor=sh.color; ctx.shadowBlur=28*f*dpr; }
+      ctx.drawImage(sh.bmp, -size, -size, size*2, size*2);
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+  ctx.globalCompositeOperation='source-over';
+}
+function draw(now){
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  const g=ctx.createRadialGradient(view.cx,view.cy,0,view.cx,view.cy,Math.max(W,H)*0.85);
+  g.addColorStop(0,'#211d4a'); g.addColorStop(0.5,'#15132c'); g.addColorStop(1,'#0a0918');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  ctx.translate(view.cx,view.cy); R=view.r;
+  const base=dispRot();
+
+  ctx.strokeStyle=`rgba(239,235,248,${0.08*view.a*(0.35+0.65*scene.fan)})`; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.arc(0,0,R,0,Math.PI*2); ctx.stroke();
+  if(current && scene.lines>0.01){
+    ctx.strokeStyle=`rgba(239,235,248,${0.09*scene.lines})`;
+    for(let k=0;k<current.N;k++){ const a=base+k*current.w*smooth(clamp(scene.fan*1.5-0.5*k/current.N,0,1));
+      ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(Math.cos(a)*R,Math.sin(a)*R); ctx.stroke(); }
+  }
+  // The slice you're filling (and, in the melody step, its mirror image).
+  if(current && scene.wedge>0.01){
+    const span=current.w*(1+scene.pair);
+    ctx.save(); ctx.rotate(base);
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.arc(0,0,R,0,span); ctx.closePath();
+    ctx.fillStyle=`rgba(239,235,248,${0.05*scene.wedge})`; ctx.fill();
+    ctx.strokeStyle=`rgba(239,235,248,${0.3*scene.wedge})`; ctx.lineWidth=1.2; ctx.stroke();
+    ctx.restore();
+  }
+  const e=1-Math.pow(1-trans,3);
+  if(prev && trans<1) drawLayout(prev,(1-e)*view.a,1+0.05*e,null);
+  if(current) drawLayout(current,(prev&&trans<1?e:1)*view.a,(prev&&trans<1)?0.95+0.05*e:1,flash);
+
+  // The marker at the top, where pieces become sound.
+  if(scene.marker>0.01){
+    const top=-R*1.06, a=(0.16+0.5*playFlash)*scene.marker;
+    const lg=ctx.createLinearGradient(0,top,0,-R*0.15);
+    lg.addColorStop(0,`rgba(239,235,248,${a})`); lg.addColorStop(1,'rgba(239,235,248,0)');
+    ctx.strokeStyle=lg; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo(0,top); ctx.lineTo(0,-R*0.15); ctx.stroke();
+    ctx.globalAlpha=scene.marker; ctx.fillStyle = playFlash>0.05 ? lastColor : 'rgba(239,235,248,0.65)';
+    ctx.beginPath(); ctx.moveTo(-7,top-11); ctx.lineTo(7,top-11); ctx.lineTo(0,top); ctx.closePath(); ctx.fill();
+    ctx.globalAlpha=1;
+  }
+  drawHands(now);
+}
+function drawHands(now){
+  if(!Hands.on || state.screen!=='play') return;
+  const M=current ? current.items.length : 0;
+  for(const role of ['spin','shapes']){
+    const h=Hands.roles[role]; if(!h) continue;
+    const x=h.center.x*W-view.cx, y=h.center.y*H-view.cy, r=22;
+    ctx.save(); ctx.lineWidth=2;
+    if(role==='spin'){
+      ctx.strokeStyle=`rgba(239,235,248,${Hands.pushing?0.85:0.45})`;
+      ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.stroke();
+      if(Hands.pushing){ const dir=Math.sign(Hands.spin.vx);
+        ctx.beginPath(); ctx.moveTo(x+dir*(r+6),y-6); ctx.lineTo(x+dir*(r+14),y); ctx.lineTo(x+dir*(r+6),y+6); ctx.stroke(); }
+    } else if(M>0){
+      const a=activeCount();
+      ctx.strokeStyle='rgba(239,235,248,0.6)'; ctx.setLineDash([4,5]);
+      ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+      const gap=11, x0=x+r+16, yb=y+(M-1)*gap/2;
+      [...current.items].sort((p,q)=>p.rank-q.rank).forEach((it,k)=>{
+        ctx.globalAlpha=k<a?0.95:0.2; ctx.fillStyle=SHAPES[it.shape].color;
+        ctx.beginPath(); ctx.arc(x0,yb-k*gap,4,0,Math.PI*2); ctx.fill();
+      });
+      ctx.globalAlpha=1;
+    }
+    ctx.restore();
+  }
+}
+
+/* ===================== PLAYHEAD → NOTES (play only) ===================== */
+function wrap(a){ a=(a+Math.PI)%(2*Math.PI); if(a<0)a+=2*Math.PI; return a-Math.PI; }
+function detectTriggers(){
+  const { w, N, items } = current, M=items.length, base=dispRot();
+  const ths=items.map(it=>pose(it, w, state.rot, state.motion*scene.motionMix, state.speed).th);
+  for(let k=0;k<N;k++) for(let i=0;i<M;i++){
+    if(current.vis && current.vis[i]<0.5){ prevRel[k*M+i]=undefined; continue; }
+    const th=ths[i], ang = k%2===0 ? base+k*w+th : base+(k+1)*w-th;
+    const rel=wrap(ang-PLAYHEAD), idx=k*M+i, p=prevRel[idx];
+    if(p!==undefined && Math.abs(rel)<1 && Math.abs(p)<1 && ((p<0&&rel>=0)||(p>0&&rel<=0))) trigger(idx,items[i]);
+    prevRel[idx]=rel;
+  }
+}
+function trigger(idx,it){
+  const sh=SHAPES[it.shape];
+  if(!AudioEngine.request(it.shape)){ flash[idx]=0.3; dropped.push(performance.now()); return; }
+  flash[idx]=1; playFlash=1; lastColor=sh.color; hits.push(performance.now());
+}
+
+/* ===================== SPIN ===================== */
+let dragging=false, lastX=0, lastT=0, dragVel=0, oppTime=0;
+const canSpin=()=>state.screen==='play' || (state.screen==='setup' && state.step===4);
+canvas.addEventListener('pointerdown',e=>{ if(!canSpin()) return;
+  dragging=true; lastX=e.clientX; lastT=performance.now(); dragVel=0;
+  canvas.setPointerCapture(e.pointerId); canvas.classList.add('dragging'); });
+canvas.addEventListener('pointermove',e=>{
+  if(!dragging) return;
+  const now=performance.now(), dt=Math.max((now-lastT)/1000,0.008), dRot=(e.clientX-lastX)*DRAG_GAIN;
+  state.rot+=dRot; dragVel=dragVel*0.6+(dRot/dt)*0.4; lastX=e.clientX; lastT=now;
+});
+function endDrag(){ if(!dragging) return; dragging=false; canvas.classList.remove('dragging'); state.vel=clamp(dragVel,-MAX_SPEED,MAX_SPEED); }
+canvas.addEventListener('pointerup',endDrag); canvas.addEventListener('pointercancel',endDrag);
+function updateSpin(dt,now){
+  const v=Math.abs(dragging?dragVel:state.vel);
+  const fl=Math.tanh(Math.max(0,v-IDLE_SPEED)/2.2);
+  state.speed+=(fl-state.speed)*Math.min(1,dt*(fl>state.speed?4:1.5));
+  if(dragging){ if(now-lastT>60) dragVel*=0.8; return; }
+  const idle=IDLE_SPEED*(Math.sign(state.vel)||1);
+  const coast=()=>{ state.vel=idle+(state.vel-idle)*Math.exp(-FRICTION*dt); };
+  // Heavy wheel: pushes only add speed in the direction it's going; a quick return stroke
+  // is ignored; only a sustained push the other way brakes and reverses.
+  if(Hands.on && Hands.pushing && canSpin()){
+    const tgt=Hands.target, vel=state.vel;
+    const sameWay=Math.sign(tgt)===Math.sign(vel) || Math.abs(vel)<0.3;
+    if(sameWay){ oppTime=0; if(Math.abs(tgt)>Math.abs(vel)) state.vel+=(tgt-vel)*Math.min(1,dt*6); else coast(); }
+    else { oppTime+=dt; if(oppTime>0.35) state.vel+=(tgt-vel)*Math.min(1,dt*2.5); else coast(); }
+    state.vel=clamp(state.vel,-MAX_SPEED,MAX_SPEED);
+  } else { oppTime=0; coast(); }
+  state.rot+=state.vel*dt;
+}
+
+/* ===================== STEP 1 · PIECES ===================== */
+const tilesEl=document.getElementById('tiles');
+function total(){ return state.counts.reduce((a,b)=>a+b,0); }
+function setCount(i,delta){
+  const c=state.counts[i]+delta;
+  if(c<0 || (delta>0 && total()>=MAX_TOTAL)) return;
+  state.counts[i]=c; relayout(); renderUI();
+  if(delta>0) AudioEngine.audition(i);
+}
+function buildTiles(){
+  SHAPES.forEach((s,i)=>{
+    const t=document.createElement('div'); t.className='shape';
+    t.innerHTML=`<button class="add" aria-label="Add a ${s.name.toLowerCase()}: ${s.note}, ${s.sound.toLowerCase()}"><img src="${s.url}" alt="" draggable="false"></button>
+      <span class="note" style="color:${s.color}">${s.note}</span>
+      <span class="sound">${s.sound}</span>
+      <span class="stepper"><button class="rm" aria-label="Remove a ${s.name.toLowerCase()}">−</button><span class="count">0</span><button class="plus" aria-label="Add a ${s.name.toLowerCase()}">+</button></span>`;
+    t.querySelector('.add').onclick=()=>setCount(i,1);
+    t.querySelector('.plus').onclick=()=>setCount(i,1);
+    t.querySelector('.rm').onclick=()=>setCount(i,-1);
+    // Designer tool: drop an audio file on a piece to hear it with your own sound.
+    t.addEventListener('dragover',e=>{ e.preventDefault(); t.classList.add('drop'); });
+    t.addEventListener('dragleave',()=>t.classList.remove('drop'));
+    t.addEventListener('drop',async e=>{
+      e.preventDefault(); t.classList.remove('drop');
+      const file=[...e.dataTransfer.files].find(f=>f.type.startsWith('audio/')||/\.(wav|mp3|ogg|m4a|aac|flac)$/i.test(f.name));
+      if(!file) return;
+      AudioEngine.start();
+      try{ s.buffer=await AudioEngine.ctx.decodeAudioData(await file.arrayBuffer()); s.bufferName=file.name; renderUI(); AudioEngine.audition(i); }
+      catch(err){ alert(`"${file.name}" isn't a readable audio file.`); }
+    });
+    t.querySelector('.note').onclick=()=>{ if(!s.buffer) return; s.buffer=null; s.bufferName=null; renderUI(); AudioEngine.audition(i); };
+    s.tile=t; tilesEl.appendChild(t);
+  });
+  const slots=document.getElementById('slots');
+  for(let k=0;k<MAX_TOTAL;k++){ const b=document.createElement('button'); b.className='slot'; slots.appendChild(b); }
+  slots.addEventListener('click',e=>{ const b=e.target.closest('.slot'); if(b && b.dataset.shape!==undefined) setCount(+b.dataset.shape,-1); });
+
+  const seg=document.getElementById('sections');
+  SECTIONS.forEach(n=>{ const b=document.createElement('button'); b.textContent=n; b.setAttribute('aria-label',`${n} mirrored sections`);
+    b.onclick=()=>{ if(state.N===n) return; state.N=n; scene.fan=0; relayout(); renderUI(); }; seg.appendChild(b); });
+  document.getElementById('vPrev').onclick=()=>{ if(state.variant>0){ state.variant--; relayout(); renderUI(); queueListen(); } };
+  document.getElementById('vNext').onclick=()=>{ state.variant++; relayout(); renderUI(); queueListen(); };
+  document.getElementById('listenBtn').onclick=listen;
+}
+
+/* ===================== STEP 3 · MELODY ===================== */
+let listenTimers=[];
+function stopListen(){ listenTimers.forEach(clearTimeout); listenTimers=[]; document.querySelectorAll('#phrase .nl.on').forEach(e=>e.classList.remove('on')); }
+function queueListen(){ stopListen(); listenTimers.push(setTimeout(listen,350)); }
+// Plays one turn's worth of the slice and its mirror image, lighting each piece as it sounds.
+function listen(){
+  stopListen(); AudioEngine.start();
+  const seq=current.seq, M=seq.length; if(!M) return;
+  const order=[...seq.map((_,i)=>({k:1,i})), ...seq.map((_,i)=>({k:0,i:M-1-i}))];
+  const letters=document.querySelectorAll('#phrase .nl');
+  order.forEach((o,n)=>listenTimers.push(setTimeout(()=>{
+    const it=current.items[o.i]; if(!it) return;
+    AudioEngine.audition(it.shape);
+    flash[o.k*M+o.i]=1;
+    letters.forEach(e=>e.classList.remove('on')); if(letters[n]) letters[n].classList.add('on');
+  }, n*330)));
+  listenTimers.push(setTimeout(()=>letters.forEach(e=>e.classList.remove('on')), order.length*330+250));
+}
+function renderPhrase(){
+  const el=document.getElementById('phrase'), seq=current.seq;
+  if(!seq.length){ el.innerHTML='<span class="hint">Add a piece first.</span>'; return; }
+  const L=s=>`<span class="nl" style="color:${SHAPES[s].color}">${SHAPES[s].note}</span>`;
+  el.innerHTML=seq.map(L).join('')+'<span class="div"></span>'+seq.slice().reverse().map(L).join('');
+}
+
+/* ===================== RENDER SETUP UI ===================== */
+function renderUI(){
+  const t=total(), M=current ? current.items.length : 0;
+  SHAPES.forEach((s,i)=>{
+    s.tile.querySelector('.count').textContent=state.counts[i];
+    s.tile.querySelector('.rm').disabled=state.counts[i]===0;
+    s.tile.querySelector('.add').disabled = s.tile.querySelector('.plus').disabled = t>=MAX_TOTAL;
+    const n=s.tile.querySelector('.note');
+    n.classList.toggle('custom',!!s.buffer);
+    n.title = s.buffer ? `Your sound: ${s.bufferName}. Click to go back to the original.` : '';
+  });
+  // Slots: one per place in the slice.
+  const pieces=[]; SHAPES.forEach((s,i)=>{ for(let c=0;c<state.counts[i];c++) pieces.push(i); });
+  [...document.getElementById('slots').children].forEach((b,k)=>{
+    const p=pieces[k];
+    if(p===undefined){ b.className='slot'; b.innerHTML=''; delete b.dataset.shape; b.disabled=true; b.setAttribute('aria-label','Empty place'); }
+    else { b.className='slot filled'; b.innerHTML=`<img src="${SHAPES[p].url}" alt="">`; b.dataset.shape=p; b.disabled=false;
+      b.setAttribute('aria-label',`Remove a ${SHAPES[p].name.toLowerCase()}`); b.title='Tap to remove'; }
+  });
+  document.getElementById('slotsHint').textContent =
+    t===0 ? 'The slice is empty. Tap a piece to add it.' :
+    t>=MAX_TOTAL ? 'The slice is full. Tap a piece in it to take it out.' :
+    `${MAX_TOTAL-t} ${MAX_TOTAL-t===1?'place':'places'} left in the slice. Tap a piece in it to take it out.`;
+  document.querySelectorAll('#sections button').forEach(b=>b.classList.toggle('on',+b.textContent===state.N));
+  document.getElementById('mirrorHint').textContent = M ?
+    `Your slice appears ${state.N} times, so one turn plays ${state.N*M} notes.` : '';
+  document.getElementById('vLabel').textContent=`Melody ${state.variant+1}`;
+  document.getElementById('vPrev').disabled=state.variant===0;
+  renderPhrase();
+  renderStep();
+}
+function renderStep(){
+  document.querySelectorAll('.step').forEach(s=>s.hidden = +s.dataset.step!==state.step);
+  document.querySelectorAll('#progress button').forEach(b=>{
+    const n=+b.dataset.go;
+    b.classList.toggle('on',n===state.step);
+    b.classList.toggle('done',n<state.step || n<=state.maxStep && n!==state.step);
+    b.disabled = n>state.maxStep || (total()===0 && n>1);
+    if(n===state.step) b.setAttribute('aria-current','step'); else b.removeAttribute('aria-current');
+  });
+  document.body.dataset.step=state.step;
+  const back=document.getElementById('backBtn'), next=document.getElementById('nextBtn');
+  back.style.visibility = state.step===1 ? 'hidden' : 'visible';
+  if(state.step<4){ next.textContent='Next'; next.disabled = total()===0; }
+  else {
+    next.textContent='Look in';
+    next.disabled = !(state.input==='mouse' || (state.input==='hands' && Hands.on));
+  }
+  document.getElementById('optHands').setAttribute('aria-pressed', state.input==='hands');
+  document.getElementById('optMouse').setAttribute('aria-pressed', state.input==='mouse');
+  document.getElementById('handsPractice').hidden = state.input!=='hands';
+  renderChecks();
+}
+function renderChecks(){
+  const set=(id,on)=>document.getElementById(id).classList.toggle('done',on);
+  set('chkBoth',practice.both); set('chkSpin',practice.spin); set('chkLift',practice.lift);
+}
+
+/* ===================== STEP 4 · CONTROLS ===================== */
+document.getElementById('optHands').onclick=()=>{ state.input='hands'; document.getElementById('optMsg').textContent=''; renderStep(); handsStart(); };
+document.getElementById('optMouse').onclick=()=>{ state.input='mouse'; document.getElementById('optMsg').textContent=''; handsStop(); renderStep(); };
+function updatePractice(){
+  if(!(state.screen==='setup' && state.step===4 && Hands.on)) return;
+  let changed=false;
+  if(!practice.both && Hands.spin.present && Hands.shapes.present && Hands.spin.frames>=4 && Hands.shapes.frames>=4){ practice.both=true; changed=true; }
+  if(!practice.spin && Hands.pushTime>0.6){ practice.spin=true; changed=true; }
+  const M=current?current.items.length:0;
+  if(!practice.lift && Hands.levelSet){
+    if(Hands.level<M) practice.liftLow=true;                          // lowered: pieces left
+    else if(practice.liftLow){ practice.lift=true; changed=true; }    // lifted again: all back
+  }
+  if(changed) renderChecks();
+}
+const CONN=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+const oc=document.getElementById('camOverlay'), octx=oc.getContext('2d');
+function drawCamOverlay(){
+  if(!Hands.on) return;
+  const r=oc.getBoundingClientRect(); if(r.width<20) return;
+  const w=Math.round(r.width*dpr), h=Math.round(r.height*dpr);
+  if(oc.width!==w||oc.height!==h){ oc.width=w; oc.height=h; }
+  octx.setTransform(dpr,0,0,dpr,0,0); octx.clearRect(0,0,r.width,r.height);
+  octx.strokeStyle='rgba(239,235,248,.22)'; octx.setLineDash([4,6]);
+  octx.beginPath(); octx.moveTo(r.width/2,0); octx.lineTo(r.width/2,r.height); octx.stroke(); octx.setLineDash([]);
+  // The video is cropped to fill the box; map landmarks the same way.
+  const v=Hands.video, vw=v.videoWidth||640, vh=v.videoHeight||480;
+  const sc=Math.max(r.width/vw, r.height/vh), ox=(r.width-vw*sc)/2, oy=(r.height-vh*sc)/2;
+  const P=(p)=>[ox+(1-p.x)*vw*sc, oy+p.y*vh*sc];
+  for(const role of ['spin','shapes']){
+    const hand=Hands.roles[role]; if(!hand) continue;
+    octx.strokeStyle='#efebf8'; octx.lineWidth=2; octx.globalAlpha=.85;
+    if(role==='shapes') octx.setLineDash([3,4]);
+    for(const [a,b] of CONN){ const [x1,y1]=P(hand.lm[a]), [x2,y2]=P(hand.lm[b]); octx.beginPath(); octx.moveTo(x1,y1); octx.lineTo(x2,y2); octx.stroke(); }
+    octx.setLineDash([]); octx.globalAlpha=1;
+    const [cx,cy]=P(hand.lm[9]);
+    octx.font='600 12px "Instrument Sans", system-ui, sans-serif'; octx.textAlign='center'; octx.fillStyle='#efebf8';
+    octx.fillText(role==='spin' ? 'Spin' : `Pieces ${activeCount()}/${current.items.length}`, cx, cy-40);
+  }
+  const msg = Hands.list.length===0 ? 'Raise your hands so the camera can see them' :
+              !Hands.roles.shapes ? 'Now show your other hand too' : '';
+  const el=document.getElementById('camMsg'); if(el.textContent!==msg) el.textContent=msg;
+}
+
+/* ===================== HAND TRACKING ON/OFF ===================== */
+async function handsStart(){
+  if(Hands.on || Hands.starting) return;
+  Hands.starting=true;
+  const msg=document.getElementById('camMsg'), opt=document.getElementById('optMsg');
+  msg.textContent='Starting your camera…';
+  try{
+    Hands.stream=await navigator.mediaDevices.getUserMedia({ video:{ width:{ideal:640}, height:{ideal:480}, facingMode:'user' }, audio:false });
+    Hands.video.srcObject=Hands.stream; await Hands.video.play();
+    if(!Hands.landmarker){ msg.textContent='Loading hand tracking. The first time takes a few seconds.'; await loadLandmarker(); }
+    if(state.input!=='hands'){ Hands.stream.getTracks().forEach(tr=>tr.stop()); Hands.stream=null; Hands.starting=false; return; }
+    Hands.on=true; Hands.lastAnyHand=Hands.lastRight=performance.now()/1000;
+    Hands.pushTime=0; Hands.gestureChanged=false; Hands.levelSet=false; Hands.level=current?current.items.length:1;
+    Object.assign(practice,{both:false,spin:false,lift:false,liftLow:false});
+    msg.textContent='';
+  }catch(err){
+    if(Hands.stream){ Hands.stream.getTracks().forEach(tr=>tr.stop()); Hands.stream=null; }
+    const n=err&&err.name;
+    opt.textContent = n==='NotAllowedError' ? 'Camera access is blocked. Allow it from the camera icon in the address bar and choose this again, or play with mouse or touch.'
+      : n==='NotFoundError' ? 'No camera was found. You can play with mouse or touch.'
+      : n==='NotReadableError' ? 'Another app is using the camera. Close it and choose this again, or play with mouse or touch.'
+      : 'Hand tracking couldn’t load. It needs an internet connection the first time. You can play with mouse or touch.';
+    state.input=null;
+  }
+  Hands.starting=false;
+  renderStep(); renderChrome();
+}
+function handsStop(){
+  Hands.on=false;
+  if(Hands.stream){ Hands.stream.getTracks().forEach(tr=>tr.stop()); Hands.stream=null; }
+  Hands.list=[]; Hands.roles={}; Hands.pushing=false; Hands.levelSet=false; Hands.yEma=null;
+  trackRole(Hands.spin,null,0); trackRole(Hands.shapes,null,0);
+  octx.clearRect(0,0,oc.width,oc.height);
+  renderChrome();
+}
+
+/* ===================== SCREENS + STEPS ===================== */
+function placeCamera(){
+  const box=document.getElementById('camBox');
+  const home = state.screen==='play' ? document.getElementById('play') : document.getElementById('camSlot');
+  if(box.parentElement!==home){ home.appendChild(box); if(Hands.video.srcObject) Hands.video.play().catch(()=>{}); }
+}
+function goStep(n){
+  if(n<1 || n>4) return;
+  if(n>1 && total()===0) return;
+  if(state.step===3 && n!==3) stopListen();
+  if(state.step===1 && n===2) scene.fan=0;
+  state.step=n; state.maxStep=Math.max(state.maxStep,n);
+  if(n!==4 && Hands.on) handsStop();
+  if(n===4 && state.input==='hands' && !Hands.on) handsStart();
+  if(n===3) queueListen();
+  renderStep();
+  document.getElementById('stepBody').scrollTop=0;
+}
+function setScreen(s){
+  state.screen=s; document.body.dataset.screen=s;
+  placeCamera();
+  if(s==='play'){
+    const t=performance.now()/1000;
+    reveal.level=0; reveal.start=t; reveal.lastStep=t;
+    if(state.input==='hands' && Hands.on){ Hands.level=1; Hands.levelSet=true; Hands.lastRight=t; }
+    AudioEngine.start(); if(AudioEngine.muted) AudioEngine.setMuted(false);
+    wakeChrome();
+  }
+  renderChrome(); renderStep();
+}
+document.getElementById('beginBtn').onclick=()=>{ AudioEngine.start(); state.step=1; setScreen('setup'); };
+document.getElementById('nextBtn').onclick=()=>{ if(state.step<4) goStep(state.step+1); else { stopListen(); setScreen('play'); } };
+document.getElementById('backBtn').onclick=()=>goStep(state.step-1);
+document.querySelectorAll('#progress button').forEach(b=>b.onclick=()=>goStep(+b.dataset.go));
+function editComposition(){ if(Hands.on) handsStop(); state.step=1; setScreen('setup'); }
+document.getElementById('editBtn').onclick=editComposition;
+document.getElementById('camBtn').onclick=()=>{
+  if(Hands.on){ handsStop(); state.input='mouse'; }
+  else { state.input='hands'; handsStart().then(()=>{ if(Hands.on){ Hands.level=reveal.level||1; Hands.levelSet=true; } }); }
+};
+document.getElementById('soundBtn').onclick=()=>{
+  if(!AudioEngine.running){ AudioEngine.start(); if(AudioEngine.muted) AudioEngine.setMuted(false); }
+  else AudioEngine.setMuted(!AudioEngine.muted);
+};
+document.getElementById('fsBtn').onclick=()=>{
+  if(document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
+};
+window.addEventListener('keydown',e=>{
+  if(canSpin() && e.key==='ArrowRight') state.vel=Math.min(MAX_SPEED,state.vel+0.8);
+  if(canSpin() && e.key==='ArrowLeft')  state.vel=Math.max(-MAX_SPEED,state.vel-0.8);
+  if(e.key==='Escape' && state.screen==='play') editComposition();
+  if((e.key==='t'||e.key==='T') && !e.metaKey && !e.ctrlKey && !/INPUT|TEXTAREA/.test(document.activeElement.tagName)) document.body.classList.toggle('tuning');
+});
+let idleTimer=null;
+function wakeChrome(){
+  document.body.classList.remove('idle'); clearTimeout(idleTimer);
+  idleTimer=setTimeout(()=>{ if(state.screen==='play') document.body.classList.add('idle'); },3000);
+}
+window.addEventListener('pointermove',wakeChrome);
+window.addEventListener('keydown',wakeChrome);
+function renderChrome(){
+  document.getElementById('camBtn').setAttribute('aria-pressed', Hands.on ? 'true' : 'false');
+  document.getElementById('camBtn').title = Hands.on ? 'Stop hand tracking' : 'Play with your hands';
+  document.getElementById('camBox').classList.toggle('hidden', state.screen==='play' && !(Hands.on && document.getElementById('showCam').checked));
+}
+const ICON_SOUND='<svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 8.5a5 5 0 010 7M19 6a8.5 8.5 0 010 12"/></svg>';
+const ICON_MUTED='<svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M17 9l5 6M22 9l-5 6"/></svg>';
+function renderSound(){
+  const b=document.getElementById('soundBtn'), on=AudioEngine.running && !AudioEngine.muted;
+  b.innerHTML = on ? ICON_SOUND : ICON_MUTED;
+  b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  b.title = on ? 'Mute' : 'Turn sound on';
+}
+let guideKey=null;
+function updateGuide(t){
+  let msg='';
+  if(state.screen==='play'){
+    const since=t-reveal.start, M=current?current.items.length:0;
+    if(state.input==='hands' && Hands.on){
+      if(t-Hands.lastAnyHand>2) msg='Bring your hands back into view';
+      else if(Hands.list.length && Hands.conf<0.75) msg='Tracking is unsure. More light on your hands will help.';
+      else if(reveal.level<M && since>4 && t-Hands.lastRight>3) msg='Lift your right hand to bring in your pieces';
+    } else if(since>1.5 && since<7) msg='Drag sideways to spin';
+  }
+  if(msg===guideKey) return; guideKey=msg;
+  const el=document.getElementById('guide'); el.textContent=msg; el.style.display = msg ? 'block' : 'none';
+}
+
+/* ===================== AUDIO (phase 2) ===================== */
+// Placeholder voices only: the designer will supply final sounds.
+// Drop an audio file on a shape tile and it replaces that shape's voice.
+const NOTE_FREQ = { C:523.25, D:587.33, E:659.25, G:783.99, A:880.00 };   // C major pentatonic, one octave
+
+function makeImpulse(ctx, secs, decay){
+  const len=Math.floor(ctx.sampleRate*secs), b=ctx.createBuffer(2,len,ctx.sampleRate);
+  for(let ch=0;ch<2;ch++){ const d=b.getChannelData(ch);
+    for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,decay); }
+  return b;
+}
+function makeNoise(ctx, secs){
+  const len=Math.floor(ctx.sampleRate*secs), b=ctx.createBuffer(1,len,ctx.sampleRate), d=b.getChannelData(0);
+  for(let i=0;i<len;i++) d[i]=Math.random()*2-1;
+  return b;
+}
+// One decaying partial.
+function tone(ctx, out, t, { f, type='sine', amp, a=0.004, d, cents=0 }){
+  const o=ctx.createOscillator(), g=ctx.createGain();
+  o.type=type; o.frequency.value=f; o.detune.value=cents;
+  g.gain.setValueAtTime(0,t);
+  g.gain.linearRampToValueAtTime(amp,t+a);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+a+d);
+  o.connect(g); g.connect(out); o.start(t); o.stop(t+a+d+0.05);
+}
+function noiseBurst(ctx, out, t, noise, { filter='bandpass', f, q=1, amp, a=0.005, d }){
+  const s=ctx.createBufferSource(), fl=ctx.createBiquadFilter(), g=ctx.createGain();
+  s.buffer=noise; fl.type=filter; fl.frequency.value=f; fl.Q.value=q;
+  g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(amp,t+a);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+a+d);
+  s.connect(fl); fl.connect(g); g.connect(out); s.start(t); s.stop(t+a+d+0.05);
+}
+const VOICES = {
+  // Circle · C · soft bell: inharmonic bell partials, gentle top end, long ring
+  circle(ctx,out,f,t){
+    tone(ctx,out,t,{ f, amp:0.42, d:2.6 });
+    tone(ctx,out,t,{ f:f*2,    amp:0.12, d:1.8 });
+    tone(ctx,out,t,{ f:f*2.76, amp:0.08, d:1.1 });
+    tone(ctx,out,t,{ f:f*5.4,  amp:0.03, d:0.5 });
+  },
+  // Triangle · D · plucked: bright saw through a closing low-pass, short decay
+  triangle(ctx,out,f,t){
+    const fl=ctx.createBiquadFilter(), g=ctx.createGain();
+    fl.type='lowpass'; fl.Q.value=3;
+    fl.frequency.setValueAtTime(f*9,t); fl.frequency.exponentialRampToValueAtTime(f*1.3,t+0.3);
+    g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(0.2,t+0.003);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+0.9);
+    for(const c of [-5,5]){ const o=ctx.createOscillator(); o.type='sawtooth'; o.frequency.value=f; o.detune.value=c;
+      o.connect(fl); o.start(t); o.stop(t+0.95); }
+    fl.connect(g); g.connect(out);
+  },
+  // Square · E · warm mallet: round fundamental, quick wooden overtone and knock
+  square(ctx,out,f,t,noise){
+    tone(ctx,out,t,{ f, amp:0.5, a:0.002, d:1.1 });
+    tone(ctx,out,t,{ f:f*3.93, amp:0.1, a:0.002, d:0.18 });
+    noiseBurst(ctx,out,t,noise,{ filter:'lowpass', f:f*2, amp:0.08, a:0.001, d:0.03 });
+  },
+  // Hexagon · G · glass: soft attack, pure tone with slow shimmer (two slightly detuned sines)
+  hexagon(ctx,out,f,t){
+    tone(ctx,out,t,{ f, amp:0.3, a:0.03, d:2.4 });
+    tone(ctx,out,t,{ f, amp:0.18, a:0.03, d:2.2, cents:6 });
+    tone(ctx,out,t,{ f:f*2, amp:0.07, a:0.03, d:1.4 });
+    tone(ctx,out,t,{ f:f*3, amp:0.025, a:0.03, d:0.8 });
+  },
+  // Star · A · airy chime: bright chime partials plus a breath of filtered noise
+  star(ctx,out,f,t,noise){
+    tone(ctx,out,t,{ f, amp:0.28, a:0.003, d:2.2 });
+    tone(ctx,out,t,{ f:f*2.4, amp:0.11, a:0.003, d:1.4 });
+    tone(ctx,out,t,{ f:f*4.1, amp:0.05, a:0.003, d:0.8 });
+    tone(ctx,out,t,{ f:f*6.2, amp:0.025, a:0.003, d:0.4 });
+    noiseBurst(ctx,out,t,noise,{ f:f*4, q:1.5, amp:0.07, a:0.012, d:0.4 });
+  },
+};
+
+const AudioEngine = {
+  ctx:null, bus:null, master:null, dry:null, wet:null, noise:null,
+  nextFree:0, muted:false, volume:0.8, space:0.35, maxRate:8,
+  BACKLOG:0.08,          // never let sound lag the visuals by more than this (s)
+  start(){
+    if(this.ctx){ if(this.ctx.state==='suspended') this.ctx.resume(); return; }
+    const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return;
+    const ctx=this.ctx=new AC();
+    this.bus=ctx.createGain(); this.bus.gain.value=0.6;
+    this.dry=ctx.createGain(); this.wet=ctx.createGain();
+    const verb=ctx.createConvolver(); verb.buffer=makeImpulse(ctx,2.8,2.6);
+    const comp=ctx.createDynamicsCompressor();
+    comp.threshold.value=-14; comp.knee.value=10; comp.ratio.value=4; comp.attack.value=0.003; comp.release.value=0.25;
+    this.master=ctx.createGain();
+    this.bus.connect(this.dry); this.bus.connect(verb); verb.connect(this.wet);
+    this.dry.connect(comp); this.wet.connect(comp); comp.connect(this.master); this.master.connect(ctx.destination);
+    this.noise=makeNoise(ctx,1);
+    this.setVolume(this.volume); this.setSpace(this.space);
+    ctx.onstatechange=renderSound;
+    renderSound();
+  },
+  get running(){ return !!this.ctx && this.ctx.state==='running'; },
+  setVolume(v){ this.volume=v; if(this.master) this.master.gain.setTargetAtTime(this.muted?0:v, this.ctx.currentTime, 0.03); },
+  setMuted(m){ this.muted=m; this.setVolume(this.volume); renderSound(); },
+  setSpace(s){ this.space=s; if(!this.dry) return;
+    this.dry.gain.setTargetAtTime(1-0.45*s, this.ctx.currentTime, 0.05);
+    this.wet.gain.setTargetAtTime(0.9*s,    this.ctx.currentTime, 0.05); },
+  // Called on every playhead crossing. Notes are strictly one after another:
+  // each waits at least 1/maxRate after the previous one. If that would make the
+  // sound fall behind the picture, the note is skipped (thinned) instead.
+  request(shapeIdx){
+    if(!this.running) return true;
+    const now=this.ctx.currentTime, t=Math.max(now+0.005, this.nextFree);
+    if(t-now > this.BACKLOG) return false;
+    this.nextFree = t + 1/this.maxRate;
+    this.play(shapeIdx, t);
+    return true;
+  },
+  audition(shapeIdx){ this.start(); if(!this.ctx) return;
+    const t=this.ctx.currentTime+0.01; this.play(shapeIdx,t); this.nextFree=Math.max(this.nextFree,t+1/this.maxRate); },
+  play(i,t){
+    const sh=SHAPES[i];
+    if(sh.buffer){ const s=this.ctx.createBufferSource(), g=this.ctx.createGain();
+      s.buffer=sh.buffer; g.gain.value=0.7; s.connect(g); g.connect(this.bus); s.start(t); return; }
+    VOICES[sh.id](this.ctx, this.bus, NOTE_FREQ[sh.note], t, this.noise);
+  },
+};
+// Browsers only allow sound after a user gesture: the first click/tap/key turns it on.
+['pointerdown','keydown'].forEach(ev=>window.addEventListener(ev,()=>AudioEngine.start(),{capture:true}));
+
+
+
+
+
+/* ===================== TUNING DRAWER (press T) ===================== */
+function setupTuning(){
+  const m=document.getElementById('motion'); m.value=Math.round(state.motion*100); document.getElementById('motionVal').textContent=m.value;
+  m.oninput=e=>{ state.motion=e.target.value/100; document.getElementById('motionVal').textContent=e.target.value; prevRel=[]; };
+  document.getElementById('vol').oninput=e=>AudioEngine.setVolume(e.target.value/100);
+  document.getElementById('space').oninput=e=>{ AudioEngine.setSpace(e.target.value/100); document.getElementById('spaceVal').textContent=e.target.value; };
+  document.getElementById('rate').oninput=e=>{ AudioEngine.maxRate=+e.target.value; document.getElementById('rateVal').textContent=e.target.value; };
+  document.getElementById('blend').onchange=e=>{ state.blend=e.target.checked; };
+  document.getElementById('lines').onchange=e=>{ state.showLines=e.target.checked; };
+  document.getElementById('showCam').onchange=renderChrome;
+}
+let hudT=0;
+function hud(now){
+  if(now-hudT<150 || !document.body.classList.contains('tuning')) return; hudT=now;
+  while(hits.length && hits[0]<now-2000) hits.shift();
+  while(dropped.length && dropped[0]<now-2000) dropped.shift();
+  const v=dragging?dragVel:state.vel;
+  document.getElementById('hud').textContent=
+    `spin      ${(v*60/(2*Math.PI)).toFixed(1)} rpm\nnotes/s   ${(hits.length/2).toFixed(1)}\nthinned/s ${(dropped.length/2).toFixed(1)}\npieces in ${activeCount()} / ${current?current.items.length:0}\nhands     ${Hands.on?Hands.list.length:'off'}`;
+}
+
+/* ===================== LOOP + BOOT ===================== */
+function loadShape(s){
+  return new Promise((res,rej)=>{
+    const url=URL.createObjectURL(new Blob([SVGS[s.id]],{type:'image/svg+xml'}));
+    const img=new Image();
+    img.onload=()=>{ const c=document.createElement('canvas'); c.width=c.height=512;
+      c.getContext('2d').drawImage(img,0,0,512,512); s.url=url; s.bmp=c; res(); };
+    img.onerror=rej; img.src=url;
+  });
+}
+let last=performance.now();
+function frame(now){
+  const dt=Math.min((now-last)/1000,0.05), t=now/1000; last=now;
+  handsDetect(now);
+  updatePractice();
+  updateReveal(t);
+  updateGuide(t);
+  updateSpin(dt,now);
+  updateScene(dt);
+  updateView(dt);
+  if(current && current.items.length && state.screen==='play') detectTriggers(); else prevRel=[];
+  for(let j=0;j<flash.length;j++) if(flash[j]>0) flash[j]=Math.max(0,flash[j]-dt*3.5);
+  playFlash=Math.max(0,playFlash-dt*4);
+  if(trans<1) trans=Math.min(1,trans+dt/0.38);
+  if(current && current.vis){ const act=activeCount();
+    current.items.forEach((it,i)=>{ const tgt=it.rank<act?1:0; current.vis[i]+=(tgt-current.vis[i])*Math.min(1,dt*7); }); }
+  draw(now);
+  if(state.screen==='setup' && state.step===4) drawCamOverlay();
+  hud(now);
+  requestAnimationFrame(frame);
+}
+Promise.all(SHAPES.map(loadShape)).then(()=>{
+  Hands.video=document.getElementById('cam');
+  buildTiles(); relayout(); renderUI(); renderSound(); setupTuning();
+  setScreen('intro'); resize();
+  requestAnimationFrame(frame);
+});
+</script>
+</body>
+</html>
